@@ -1,0 +1,60 @@
+# Answer key for the 45 held-out evaluation incidents (in the harness, not in the samples).
+#
+# Proposed by Claude from each incident's resolution notes, 2026-10-08.
+# STATUS: needs SME confirmation.
+#
+# Rules:
+#  - This file is for scoring only. Nothing here may be copied into the pattern
+#    cards, the entity file or any prompt.
+#  - expected: the card(s) a correct answer should name. Empty = the right answer
+#    is "no close match" (the issue type is not covered by any card).
+#  - acceptable: also counted as correct.
+#  - coverage: full = the card explains cause and fix; partial = the card fits the
+#    symptom but the fix or cause differs; none = no card covers it.
+
+labels:
+  INC9390629: {expected: [], coverage: none, note: "Misc Report Tidal job failing; a .bat file pointed to the wrong folder"}
+  INC9430417: {expected: [], acceptable: [PC-10], coverage: none, note: "Password unknown in the test environment; REMAN.NDX copied from quality"}
+  INC9435163: {expected: [], coverage: none, note: "Reports MISCRPT068/069 from F8RH0442 show garbage data; program fixed (code change)"}
+  INC9439635: {expected: [PC-15], acceptable: [PC-03, PC-01], coverage: partial, note: "Duplicate open error 4102 on REMAN.NDX; transient lock, worked on retry"}
+  INC9439676: {expected: [], coverage: none, note: "How-to: access needed to reset LMS IDs"}
+  INC9441666: {expected: [PC-01], coverage: full, note: "IN0011.MST corrupt; locks closed and file recovered"}
+  INC9459478: {expected: [], coverage: none, note: "How-to: access level for the receive-as-used option"}
+  INC9459488: {expected: [], acceptable: [PC-14], coverage: none, note: "Line checker printed wrong characters; hung Tidal jobs aborted, tickets reprinted"}
+  INC9472845: {expected: [PC-08], coverage: partial, note: "LMS/INV mismatch on a location transfer; user ignored an on-screen error"}
+  INC9519883: {expected: [PC-06], coverage: full, note: "F8RH3910 RSN=1, input dataset not found; file created and job resubmitted"}
+  INC9519961: {expected: [PC-06], coverage: full, note: "F8RH3930 under JCL A.F8RH3910, RSN=1; upload files not received"}
+  INC9522056: {expected: [PC-06], coverage: full, note: "F8RH3910 on user hold; daily input files not received"}
+  INC9532547: {expected: [], coverage: none, note: "F8RH8010 failed; test job removed from the scheduler"}
+  INC9532741: {expected: [], coverage: none, note: "F8RH8010 JCL error from a line dropped during testing"}
+  INC9538802: {expected: [PC-06], acceptable: [PC-05], coverage: partial, note: "F8RH3910 U4006; the wrong file was uploaded"}
+  INC9550654: {expected: [], coverage: none, note: "F8RH1C10 S913; needs ACF2 dataset access and a JCL change"}
+  INC9578140: {expected: [PC-09], acceptable: [PC-10], coverage: partial, note: "User needed a password reset and all sessions closed"}
+  INC9581851: {expected: [PC-02], coverage: full, note: "IN0015.MOV and IN0018.MOV invalid file structure; locks closed, Option 34 recovery"}
+  INC9592535: {expected: [PC-10], acceptable: [PC-09], coverage: partial, note: "Incorrect password and the email code never arrived; password reset"}
+  INC9679924: {expected: [PC-08], acceptable: [PC-15], coverage: partial, note: "LMS/INV count mismatch; counts matched on check"}
+  INC9679967: {expected: [PC-15], acceptable: [PC-09], coverage: partial, note: "Login blocked for about 20 minutes, then resolved itself"}
+  INC9723004: {expected: [PC-08], coverage: partial, note: "Control number mismatch between ticket tracking and LMS blocked the issue"}
+  INC9730755: {expected: [PC-02], coverage: full, note: "IN0018.MOV invalid file structure; file recovered"}
+  INC9737249: {expected: [PC-13], coverage: full, note: "QNET file pack and upload request"}
+  INC9791495: {expected: [PC-08], acceptable: [PC-15], coverage: partial, note: "Ticket did not print and reserve zeroed; not reproducible in DEV"}
+  INC9821411: {expected: [], coverage: none, note: "Host/LAN mismatch report; missing transactions added via F8RH0415"}
+  INC9827149: {expected: [PC-08], coverage: full, note: "Parts reserved from a non-pickable location (FIFO 'N')"}
+  INC9844779: {expected: [PC-09], coverage: full, note: "LMS 'signon not found'; user ID checked in Reman Index"}
+  INC9855594: {expected: [PC-02], coverage: full, note: "Receipt tickets not transferring; IN0015.MOV corrupt, locks closed, Option 34"}
+  INC9856486: {expected: [PC-02], coverage: full, note: "RC not transferring into LMS; IN0015.MOV corrupt, recovered"}
+  INC9874203: {expected: [PC-02], coverage: full, note: "Received parts not going into the zone, code 984; IN0015.MOV corrupt"}
+  INC10297897: {expected: [PC-08], coverage: partial, note: "Mismatch after an Oracle start error (SQL 2005) and transaction backout"}
+  INC10301912: {expected: [], coverage: none, note: "Access request stuck waiting for the system owner's approval"}
+  INC10303985: {expected: [PC-06], coverage: full, note: "F8RH3910 RSN=1; daily Tidal upload not received, restarted after it arrived"}
+  INC10304415: {expected: [PC-01], coverage: full, note: "Invalid file structure; IN0011.MST corrupted, recovered"}
+  INC10306275: {expected: [PC-01], coverage: full, note: "COBOL job F8RH0335 locked up; IN0011.MST corrupted, recovered"}
+  INC10316518: {expected: [PC-01], coverage: full, note: "LMS won't open; IN0011.MST corrupted, recovered"}
+  INC10322405: {expected: [PC-01], coverage: full, note: "File lock with errors 984 and 9802; master file repaired after closing locks"}
+  INC10370320: {expected: [PC-01], coverage: full, note: "LMS in a file lock, cannot log in; master file repaired after releasing locks"}
+  INC10380724: {expected: [PC-02], coverage: full, note: "LMS error 984 IN0018.MOV; file recovered"}
+  INC10380880: {expected: [PC-02], coverage: full, note: "Inventory not printing the right number of kit tickets; IN0018.MOV corrupted"}
+  INC10391066: {expected: [PC-15], coverage: full, note: "LMS/INV would not load; working fine on check, no action"}
+  INC10397639: {expected: [PC-10], coverage: partial, note: "Cannot reset LMS password; password blanked so the user could reset"}
+  INC10407884: {expected: [PC-15], acceptable: [PC-09], coverage: partial, note: "LMS would not load; working fine later, no action"}
+  INC10441154: {expected: [PC-02], coverage: full, note: "Invalid file structure on INV0018.MOV (IN0018.MOV); file recovered"}

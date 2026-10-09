@@ -1,0 +1,134 @@
+# Canonical identifiers and the spellings seen for them.
+#
+# source: doc    = AWS Transform documentation
+#         ticket = Reman_samples.xlsx (incidents, SRs, CRs)
+#
+# Rule: nothing here may come only from the 45 held-out evaluation incidents in
+# Reman_incidents_harness.xlsx. scripts/validate_knowledge.py checks evidence IDs;
+# aliases and phrases have to be kept clean by hand.
+
+applications:
+  # Phrases are matched as whole words, case-insensitive.
+  LMS: [lms, location management, location management system, kit, kits, kit ticket,
+        line checker, line checkers, zebra, zebras, replenishment, light decon]
+  Inventory: [inventory, inv, material systems, receiving, receipt, receipts]
+  Reman Index: [reman index, sign on, signon, sign-on, log in, login, logged on,
+                signed on, password, security, access level]
+  BOM: [bom, bill of material, bill of materials]
+  Reporting: [misc report, report program, f8rh0442]
+  Batch: [ajs, abend, jcl, job failed, tidal, ndm, batch job]
+  Shipping: [asn, edi, dock code, facility code]
+
+programs:
+  # The six programs AWS Transform documented. `legacy` is the name used in the docs.
+  - {id: F8RH0071, legacy: 01RMNIDX, application: Reman Index, what: "Reman Index security and master data maintenance (file recovery is Option 34)", source: doc}
+  - {id: F8RH0030, legacy: 02RMNINVTR, application: Inventory, what: "Inventory menu driver and transaction hub", source: doc}
+  - {id: F8RH0093, legacy: 03RMNLMS, application: LMS, what: "Location Management System driver", source: doc}
+  - {id: F8RH0442, legacy: 04RH0442, application: Reporting, what: "Batch reporting utility (75+ reports)", source: doc}
+  - {id: F8RHE247, legacy: 05RHE247, application: Inventory, what: "Inventory detail inquiry", source: doc}
+  - {id: F8RH0101, legacy: 06RH0101, application: BOM, what: "Bill of material maintenance", source: doc}
+  # Called by all six; not documented itself.
+  - {id: F8RH0251, application: Reman Index, what: "Security check at sign-on (return codes 2 = sign-on not found, 3 = already signed on)", source: doc}
+  # Seen only in tickets.
+  - {id: F8RH0199, application: Batch, what: "Restart point for the STKORD job", source: ticket}
+  - {id: F8RH7910, application: Shipping, what: "ASN process", source: ticket}
+  - {id: F8RHC071, application: Shipping, what: "Quickjob used by the ASN process (facility code conversion)", source: ticket}
+  - {id: F8RH0087, application: LMS, what: "Line checker processing (under analysis for unprinted tickets)", source: ticket}
+  - {id: F8RH0310, application: LMS, what: "Transaction inquiry in LMS (fixed by CHG0790325)", source: ticket}
+
+files:
+  - id: IN0011.MST
+    name: LOCATION-FILE
+    what: "Location file (part / location / suffix records), opened by both LMS and Inventory; high contention when LMS is active"
+    used_by: [LMS, Inventory, Reporting]
+    source: doc
+    aliases: [IN001.MST, IN0011MST, IN0011, location file]
+  - id: IN0001.MST
+    name: INV-MASTER
+    what: "Inventory master: part numbers, descriptions, on-hand quantities"
+    used_by: [Inventory, LMS, BOM, Reporting]
+    source: doc
+    # No phrase alias: tickets say "inventory master" loosely for IN0011.MST and IN0018.MOV too.
+    aliases: []
+  - id: IN0018.MOV
+    what: "Current issue tickets: control numbers, parts, quantities, cells, line checker"
+    used_by: [Inventory, Reporting]
+    source: doc
+    aliases: [IN0018.MOL, IN0018.MST, IN0018]
+  - id: IN0015.MOV
+    what: "Control-ticket records processed on receipt"
+    used_by: [Inventory, Reporting]
+    source: doc
+    aliases: [IN0015.MOR, IN0015]
+  - id: IN0014.CTL
+    what: "Light decon control file (not in the documentation)"
+    used_by: [Inventory]
+    source: ticket
+    aliases: [IN0014, light decon control file]
+  - id: INKT0300.ACT
+    what: "Kit printing activity file (not in the documentation)"
+    used_by: [Inventory]
+    source: ticket
+    aliases: [INKT0300]
+  - id: IN0056.MST
+    name: HOT-FILE
+    what: "Hot parts master. Two program summaries call it HOT-FILE; one calls it INV-SEQUENCE."
+    used_by: [Inventory, LMS, Reporting]
+    source: doc
+    aliases: [hot parts master, hot part master]
+  - id: IN0005.MST
+    name: STOP-FILE
+    what: "Parts flagged for stop processing"
+    used_by: [Inventory, LMS, Reporting]
+    source: doc
+    aliases: []
+  - id: REMAN.NDX
+    name: REMAN-INDEX
+    what: "Reman index: security records, settings and flags such as FIFO for D-type locations"
+    used_by: [Reman Index, Inventory, LMS, BOM, Reporting]
+    source: doc
+    aliases: [reman index file]
+  - id: SS0001.REL
+    what: "File the mainframe produces for the Tidal EDI job"
+    used_by: [Shipping]
+    source: ticket
+    aliases: []
+
+error_codes:
+  # Screen error numbers operators report. Meanings come from ticket history;
+  # no document explains them.
+  - {code: "984", family: file_corrupt_or_locked, source: ticket}
+  - {code: "983", family: file_corrupt_or_locked, source: ticket}
+  - {code: "9802", family: file_corrupt_or_locked, source: ticket}
+  - {code: "4600", family: file_corrupt_or_locked, meaning: "No file position", source: ticket}
+  - {code: "9302", family: control_file_lock, source: ticket}
+
+error_families:
+  file_corrupt_or_locked:
+    meaning: "Indexed file corrupt, locked, or both"
+    usual_fix: "Close every open instance and lock, then recover the file"
+  control_file_lock:
+    meaning: "Lock on a control file; usually not corrupt"
+    usual_fix: "Release the lock"
+
+abends:
+  - {code: U4005, what: "Abacus (control count) mismatch in past cases; once it was bad data", source: ticket}
+  - {code: U4004, what: "Bad input data in past cases", source: ticket}
+  - {code: U4000, what: "Input file not delivered (Tidal / NDM) in past cases", source: ticket}
+  - {code: U3336, what: "JCL error because LAN files were not transferred, in past cases", source: ticket}
+  - {code: U2222, what: "NDM step timed out on the SI mailbox, in past cases", source: ticket}
+  - {code: S0C7, what: "Data exception: non-numeric data in a numeric field", source: ticket, aliases: [SOC7, Soc7]}
+
+jobs:
+  - {id: A.F8RH0410, steps: [F8RH0415, F8RH0430, F8RH0435], source: ticket}
+  - {id: A.F8RH0910, steps: [F8RH0920], source: ticket}
+  - {id: A.F8RH3910, steps: [F8RH3910], source: ticket}
+  - {id: A.F8RH5010, steps: [F8RH5010], source: ticket}
+  - {id: A.F8RH8010, steps: [F8RH8010], source: ticket}
+  - {id: STKORD, steps: [F8RH0199], source: ticket, aliases: [stkord]}
+
+datasets:
+  - {id: VSAMPROD.F8RH.F810D006, what: "Dataset whose abacus mismatched in U4005 cases", source: ticket}
+  - {id: WRK.F8RH.P1390191, what: "F8RH3910 work file that once held blank data", source: ticket}
+  - {id: WRK.F8RH.P1F80148, what: "Work file behind SS0001.rel", source: ticket}
+  - {id: ACT.F8RH.P1F80250, what: "Possible backup of the SS0001.rel data", source: ticket}

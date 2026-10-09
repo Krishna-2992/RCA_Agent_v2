@@ -1,0 +1,687 @@
+# REMAN RCA pattern cards - machine-readable source of truth (schema: rca/cards.py).
+#
+# Built only from Reman_samples.xlsx and the AWS Transform documentation.
+# Evidence must never cite one of the 45 held-out evaluation incidents;
+# scripts/validate_knowledge.py rejects that.
+#
+# Review copy for the SME: knowledge/pattern_cards_draft_v0.md
+# Step sources: ticket = a resolved record did this; doc = AWS Transform docs;
+#               sme = proposed, needs the support team to confirm or supply.
+
+version: 1
+
+cards:
+
+  # -------------------------------------------------------------------------
+  - id: PC-01
+    title: "Indexed master file corrupted or locked (mostly IN0011.MST)"
+    status: draft
+    draft_confidence: high
+    system: online
+    applications: [LMS, Inventory]
+    symptoms:
+      - "LMS won't open"
+      - "can not load LMS"
+      - "LMS application will not open at all"
+      - "LMS error codes / LMS is showing an error message"
+      - "we have a file lock and are not able to make transactions"
+      - "error #9802 / file lock fatal error code #9802 / open error location file -9802"
+      - "error # 984 IN0011.MST / file lock error 984 IN0011MST section 5700 writes"
+      - "error # 4600 IN0011 no file position; cannot print kits or complete replenishment tickets"
+      - "corrupt file causing LMS applications to not function, affecting all operators"
+      - "HOT PARTS MASTER invalid file structure / file lock error # 983"
+      - "invalid file structure"
+      - "a read or start was attempted on an unopened file"
+    signals:
+      error_codes: ["984", "983", "9802", "4600"]
+      files: [IN0011.MST, IN0056.MST]
+      programs: [F8RH0093, F8RH0030]
+      phrases: [invalid file structure, file lock, no file position, unopened file, corrupt, corrupted, will not open, wont open, won't open, frozen]
+    root_cause: >-
+      An indexed data file, most often IN0011.MST (the Location file opened by both LMS and
+      Inventory), is corrupted and/or left with open locks, so every program that opens it
+      fails. The program summary rates IN0011.MST as high contention when LMS is active.
+      Why it corrupts so often is not established; that is the subject of problem PRB0077802.
+    steps:
+      - text: "Identify the affected file from the error text or screenshot. IN001.MST and IN0011MST mean IN0011.MST, not IN0001.MST."
+        source: ticket
+        refs: [INC10207132, INC10205898]
+      - text: "Get users out of the file and close all open instances and locks on it."
+        source: ticket
+        refs: [INC10153437, INC10205871]
+        needs_sme: "How support closes the locks (tool or command)."
+      - text: "Recover the file from Reman Index (F8RH0071) Option 34 - File Recovery. It runs section 6200-FILE-RECOVERY, which calls RECOVER1.EXE, and needs Reman Index security level 4 or above."
+        source: doc
+        refs: [DOC-RMNIDX-RECOVERY]
+      - text: "Alternative documented path: Inventory (F8RH0030) option 4, then F10 File Recovery (section 1407-RECOVER), which closes and reopens all files."
+        source: doc
+        refs: [DOC-RMNINVTR-RECOVERY]
+        needs_sme: "Which recovery path support uses, and when."
+      - text: "Ask the user to reopen LMS or Inventory and confirm transactions work."
+        source: ticket
+        refs: [INC10205871, INC10206709]
+    verify: "The user confirms LMS opens and transactions post, and the error does not return."
+    preventive:
+      - "Link every occurrence to PRB0077802. IN0011.MST failed about 17 times in 4 weeks, so it needs a permanent fix rather than repeated recovery."
+      - "Check whether file-error monitoring could detect corruption before users do (needs SME input)."
+    escalation: none
+    escalate_when:
+      - "Recovery fails."
+      - "The same file corrupts again within hours."
+      - "The error names a file nobody can identify."
+    dont_confuse:
+      - card: PC-02
+        how_to_tell: "Tickets not printing or not transferring, and the error names IN0018.MOV or IN0015.MOV."
+      - card: PC-03
+        how_to_tell: "Error 9302 on a control file such as IN0014.CTL; releasing the lock is usually enough."
+    evidence:
+      incidents: [INC10243056, INC10239216, INC10239214, INC10207132, INC10206730, INC10206709,
+                  INC10206697, INC10205898, INC10205871, INC10173980, INC10172270, INC10153437,
+                  INC10152406, INC10138881, INC10161392, INC10173457, INC10173454]
+      service_requests: [SCTASK4908233, SCTASK4889477, SCTASK4891637]
+      problems: [PRB0077802]
+      docs:
+        - id: DOC-RMNIDX-RECOVERY
+          file: TechnicalDocuments/01RMNIDX-cbl-0.4.4.xml
+          section: "Main menu Option 34 -> 6200-FILE-RECOVERY, calls RECOVER1.EXE; requires HOLD-UPDATE >= '4'"
+        - id: DOC-RMNINVTR-RECOVERY
+          file: TechnicalDocuments/02RMNINVTR-cbl-0.4.4.xml
+          section: "1405-CHECK-SECURITY -> 1407-RECOVER (F10 File Recovery) -> close and reopen all files"
+        - id: DOC-INVTR-FILES
+          file: "Level 1 and Level 2 documents/YashFormat-ProgramSummary/02RMNINVTR_Program Summary.docx"
+          section: "File catalogue: IN0011.MST (LOCATION-FILE), high contention when LMS active"
+    open_questions:
+      - "INC10243056 notes say the Inventory Master was corrupted while the error names IN0011.MST (the Location file). Which is right?"
+      - "Does error 4600 (no file position) always mean corruption, or sometimes only a lock?"
+
+  # -------------------------------------------------------------------------
+  - id: PC-02
+    title: "Ticket movement file corrupted (IN0018.MOV / IN0015.MOV): tickets not printing or not transferring"
+    status: draft
+    draft_confidence: high
+    system: online
+    applications: [LMS, Inventory]
+    symptoms:
+      - "trying to print tickets in LMS and Inventory but not all tickets print; a 46 pc kit printed only 3 tickets"
+      - "the 4 pm line checker tickets did not fully print; 1100-READ error IN0018"
+      - "the 1 pm line checker tickets have not printed out; we are down waiting for the next drop"
+      - "error 984 IN0015.MOR in location management: tickets print but do not transfer into LMS and INV"
+      - "file lock, file name IN0018.MOL"
+      - "file lock error / receiving error in LMS"
+      - "LMS randomly didn't print about 200 tickets from the line checker drops"
+    signals:
+      error_codes: ["984"]
+      files: [IN0018.MOV, IN0015.MOV]
+      programs: [F8RH0030, F8RH0093]
+      phrases: [tickets, not printing, did not print, not printed, not transferring, do not transfer, line checker, kit, receiving, file lock, 1100-READ]
+    root_cause: >-
+      A ticket movement file is corrupted or locked, so ticket records are not written or read
+      completely. IN0018.MOV holds the current issue tickets (control numbers, parts,
+      quantities, cells, line checker); IN0015.MOV holds control-ticket records processed on
+      receipt. For the case of about 200 missing tickets, the likely cause is that entries were
+      never written to IN0018.MOV while it was locked.
+    steps:
+      - text: "Identify which file the error names: IN0018.MOV for issue and line-checker tickets, IN0015.MOV for receipt tickets. Treat IN0018.MOL, IN0018.MST and IN0015.MOR as typos for these."
+        source: ticket
+        refs: [INC10071252, INC10163159, INC10154256]
+      - text: "Close all locks on the file."
+        source: ticket
+        refs: [INC10221086]
+        needs_sme: "How support closes the locks (tool or command)."
+      - text: "Recover the file from Reman Index Option 34 (RECOVER1.EXE, security level 4 or above)."
+        source: doc
+        refs: [DOC-RMNIDX-RECOVERY]
+        needs_sme: "Confirm Option 34 is also the path used for .MOV files."
+      - text: "Reprint the tickets that were missed and confirm with the user."
+        source: ticket
+        refs: [INC9907453]
+        needs_sme: "How to find the missed tickets (Report 73?) and reprint them."
+    verify: "The next ticket run prints the full count, and the missed tickets are accounted for."
+    preventive:
+      - "When the same file corrupts repeatedly, add it to the PRB0077802 investigation."
+      - "Compare tickets expected against tickets printed for each line-checker drop, as the reporter of INC9907453 asked (needs SME input)."
+    escalation: none
+    escalate_when:
+      - "Tickets keep going missing after the file is recovered."
+    dont_confuse:
+      - card: PC-14
+        how_to_tell: "A printer was changed or is missing from the LMS printer list, with no file error."
+      - card: PC-01
+        how_to_tell: "LMS itself will not open, or the error names IN0011.MST."
+    evidence:
+      incidents: [INC10221086, INC10163159, INC10154256, INC10153838, INC10114768, INC10114752,
+                  INC10071252, INC9907453]
+      docs:
+        - id: DOC-RMNIDX-RECOVERY
+          file: TechnicalDocuments/01RMNIDX-cbl-0.4.4.xml
+          section: "Main menu Option 34 -> 6200-FILE-RECOVERY, calls RECOVER1.EXE; requires HOLD-UPDATE >= '4'"
+        - id: DOC-MOV-FILES
+          file: TechnicalDocuments/04RH0442-cbl-0.4.4.xml
+          section: "Data files: IN0018.MOV (current issue tickets), IN0015.MOV"
+    open_questions:
+      - "SCTASK4586368 (tickets ordered 23:00-23:59 fail to print on the 5 am run every day) looks like a timing or program issue (F8RH0087), not file corruption. Should it get its own card?"
+
+  # -------------------------------------------------------------------------
+  - id: PC-03
+    title: "Control or activity file locked, not corrupted (IN0014.CTL, INKT0300.ACT)"
+    status: draft
+    draft_confidence: medium
+    system: online
+    applications: [Inventory, LMS]
+    symptoms:
+      - "we have a file lock in light decon, error code 9302"
+      - "file lock error code 9302, file name IN0014.CTL"
+      - "COBOL application shows file lock when printing a kit and the paperwork does not print correctly"
+      - "file locked, can't receive"
+    signals:
+      error_codes: ["9302"]
+      files: [IN0014.CTL, INKT0300.ACT]
+      phrases: [file lock, locked, light decon, kit, paperwork]
+    root_cause: >-
+      A lock was left on a control or activity file. The tickets show no corruption, and
+      releasing the lock was enough. IN0014.CTL (the light decon control file) is not described
+      in any documentation and is known only from tickets.
+    steps:
+      - text: "Identify the locked file from the error text."
+        source: ticket
+        refs: [INC10148317, INC10070575]
+      - text: "Release the lock on that file."
+        source: ticket
+        refs: [INC10109021, INC10055662, INC10070575]
+        needs_sme: "How support releases the lock (tool or command)."
+      - text: "Have the user retry. If the error comes back immediately, treat it as PC-01 and recover the file."
+        source: sme
+        needs_sme: "Confirm this fallback."
+    verify: "The user's transaction or kit print completes."
+    preventive:
+      - "Find out why IN0014.CTL locks repeatedly: 3 times in 4 weeks (needs SME input)."
+    escalation: none
+    escalate_when:
+      - "The lock returns immediately after it is released."
+    dont_confuse:
+      - card: PC-01
+        how_to_tell: "Errors 984, 983, 9802 or 4600, or invalid file structure, on a master file; the file needs recovery."
+    evidence:
+      incidents: [INC10148317, INC10109021, INC10055662, INC10070575]
+      service_requests: [SCTASK4841814, SCTASK4868281]
+
+  # -------------------------------------------------------------------------
+  - id: PC-04
+    title: "Batch abend U4005: abacus (control count) mismatch"
+    status: draft
+    draft_confidence: medium
+    system: batch
+    applications: [Batch]
+    symptoms:
+      - "Incident AJS002E ABEND=S000 U4005 F8RH0430(JOB...) JCL=A.F8RH0410"
+      - "Incident AJS002E ABEND=S000 U4005 F8RH0920(JOB...) JCL=A.F8RH0910"
+    signals:
+      abends: [U4005]
+      jobs: [A.F8RH0410, A.F8RH0910]
+      programs: [F8RH0430, F8RH0920]
+      datasets: [VSAMPROD.F8RH.F810D006]
+      phrases: [abacus, abacus mismatch, abend]
+    root_cause: >-
+      The abacus (control count) for the dataset does not match what the job finds, so the job
+      stops with U4005. What the abacus is and what feeds it is not documented.
+    steps:
+      - text: "Confirm from the job log that the U4005 is an abacus mismatch. On 2026-07-24 a U4005 on F8RH0430 was really bad data (see PC-05)."
+        source: ticket
+        refs: [INC10179067, INC10243474]
+      - text: "Update the abacus for the dataset (VSAMPROD.F8RH.F810D006 in past cases)."
+        source: ticket
+        refs: [INC10179067, INC10174315, INC10174054]
+        needs_sme: "How the abacus is updated."
+      - text: "Resubmit the job from the failed step and confirm it completes."
+        source: ticket
+        refs: [INC10179067, INC10174054]
+      - text: "One past case bypassed the abacus and restarted the job instead."
+        source: ticket
+        refs: [INC10248653]
+        needs_sme: "When is bypassing the abacus acceptable?"
+    verify: "The job completes (COMPL, or RC=0000 / RC=0004) from the restarted step."
+    preventive:
+      - "Find out why the count drifts upstream instead of updating it each time: 4 occurrences in 3 weeks (needs SME input)."
+    escalation: none
+    escalate_when:
+      - "The mismatch repeats on consecutive runs."
+    dont_confuse:
+      - card: PC-05
+        how_to_tell: "The job log shows S0C7 or non-numeric data, even when the alert says U4005."
+    evidence:
+      incidents: [INC10248653, INC10179067, INC10174315, INC10174054]
+    open_questions:
+      - "What is the abacus, and which upstream step sets it?"
+
+  # -------------------------------------------------------------------------
+  - id: PC-05
+    title: "Batch abend S0C7 / U4004: non-numeric or bad input data"
+    status: draft
+    draft_confidence: medium
+    system: batch
+    applications: [Batch]
+    symptoms:
+      - "Incident AJS002E ABEND=S0C7 U0000 F8RH0415(JOB...) JCL=A.F8RH0410"
+      - "Incident AJS002E ABEND=S000 U4004 F8RH0430(JOB...) JCL=A.F8RH0410"
+      - "Incident AJS002E ABEND=S000 U4004 F8RH0435(JOB...) JCL=A.F8RH0410"
+    signals:
+      abends: [S0C7, U4004, U4005]
+      jobs: [A.F8RH0410, A.F8RH8010]
+      programs: [F8RH0415, F8RH0430, F8RH0435, F8RH8010]
+      phrases: [non numeric, bad data, data exception, input file]
+    root_cause: >-
+      A record with non-numeric data in a numeric field (S0C7 data exception), or an incorrect
+      input file, reached the job.
+    steps:
+      - text: "Identify the failing record from the abend output."
+        source: sme
+        needs_sme: "How support finds the bad record."
+      - text: "Remove or correct the bad data, or correct the input file the job copies from."
+        source: ticket
+        refs: [INC10243369, INC10193118]
+      - text: "Restart or rerun the job and confirm it completes."
+        source: ticket
+        refs: [INC10243217, INC10193118]
+    verify: "The job completes successfully after the restart."
+    preventive:
+      - "Find where the bad data originates and whether the upstream extract can validate numeric fields (needs SME input)."
+    escalation: none
+    escalate_when:
+      - "Bad data keeps arriving from the same upstream source."
+    dont_confuse:
+      - card: PC-04
+        how_to_tell: "The log shows an abacus mismatch on VSAMPROD.F8RH.F810D006."
+      - card: PC-06
+        how_to_tell: "The input file is missing, or its header/trailer is wrong, rather than one bad record."
+    evidence:
+      incidents: [INC10243474, INC10243436, INC10243434, INC10243369, INC10243217, INC10193118]
+
+  # -------------------------------------------------------------------------
+  - id: PC-06
+    title: "F8RH3910 job failed (RSN=1/2): daily input file missing or malformed"
+    status: draft
+    draft_confidence: high
+    system: batch
+    applications: [Batch]
+    symptoms:
+      - "Incident AJS002I JOB FAILED RSN=1 F8RH3910(JOB...) JCL=A.F8RH3910"
+      - "Incident AJS002I JOB FAILED RSN=2 F8RH3910(JOB...) JCL=A.F8RH3910"
+      - "Incident AJS002E ABEND=S000 U4000 F8RH3910(JOB...) JCL=A.F8RH3910"
+      - "Incident AJS002E ABEND=S000 U3336 F8RH3910(JOB...) JCL=A.F8RH3910"
+    signals:
+      abends: [U4000, U3336]
+      reasons: [RSN=1, RSN=2]
+      jobs: [A.F8RH3910]
+      programs: [F8RH3910]
+      datasets: [WRK.F8RH.P1390191]
+      phrases: [job failed, input file, upload file, header, trailer, Tidal, NDM, LAN, not transferred, not received]
+    root_cause: >-
+      The daily input for F8RH3910 is missing or malformed when the job runs: the Tidal upload
+      or NDM transfer did not deliver the file, the LAN files were not transferred to the host,
+      or the file arrived with missing header/trailer records or blank data.
+    steps:
+      - text: "Check whether the expected input datasets exist and are complete."
+        source: ticket
+        refs: [INC10206728, INC10077860]
+        needs_sme: "Which input datasets F8RH3910 needs."
+      - text: "If the file is missing, contact the Tidal team, confirm the NDM transfer, and restart once the file arrives."
+        source: ticket
+        refs: [INC10206728, INC10051485]
+      - text: "If the file is malformed, correct the header/trailer records or remove the bad data, then rerun."
+        source: ticket
+        refs: [INC10139580, INC10076965]
+      - text: "Treat repeated alerts for the same job and day as one event: resolve the parent incident and link the children to it."
+        source: ticket
+        refs: [INC10139580]
+    verify: "F8RH3910 completes, with no further alerts for that day's run."
+    preventive:
+      - "Add a pre-check that the input file exists and has a valid header/trailer before F8RH3910 is triggered (needs SME input)."
+    escalation: none
+    escalate_when:
+      - "The source system keeps sending malformed files."
+    dont_confuse:
+      - card: PC-05
+        how_to_tell: "The file arrived, but one record has non-numeric data (S0C7)."
+    evidence:
+      incidents: [INC10139580, INC10206728, INC10051293, INC10051485, INC10077860, INC10076965]
+
+  # -------------------------------------------------------------------------
+  - id: PC-07
+    title: "Batch abend U2222 at the NDM step: SI mailbox slowness"
+    status: draft
+    draft_confidence: medium
+    system: batch
+    applications: [Batch]
+    symptoms:
+      - "Incident AJS002E ABEND=S000 U2222 F8RH5010(JOB...) JCL=A.F8RH5010"
+    signals:
+      abends: [U2222]
+      jobs: [A.F8RH5010]
+      programs: [F8RH5010]
+      phrases: [NDM, SI mailbox, SI prod, slowness, max delay]
+    root_cause: >-
+      SI production was slow, so the job failed at the NDM step that pulls files from the SI
+      mailbox after hitting its maximum delay.
+    steps:
+      - text: "Confirm the job failed at the NDM / SI extraction step."
+        source: ticket
+        refs: [INC10083167]
+      - text: "Ask the SI team to check or refresh the production server."
+        source: ticket
+        refs: [INC10083167, INC10082522]
+      - text: "Restart the job."
+        source: ticket
+        refs: [INC10083167, INC10082522]
+    verify: "The job completes after the restart."
+    preventive:
+      - "If it recurs, raise SI production slowness with the SI team as a problem record (needs SME input)."
+    escalation: none
+    escalate_when:
+      - "SI slowness continues after the refresh."
+    evidence:
+      incidents: [INC10083167, INC10082522]
+
+  # -------------------------------------------------------------------------
+  - id: PC-08
+    title: "Reserve / ticket inconsistency in LMS"
+    status: draft
+    draft_confidence: medium
+    system: online
+    applications: [LMS, Inventory]
+    symptoms:
+      - "control number is still an open reserve ticket, but the inventory is no longer in the stock records"
+      - "live ticket but not on reserve for the part number; the location does not exist for the part"
+      - "we need a part number reset so we can delete a glitch ticket"
+      - "reserved ticket quantity of 800 pieces but the issue ticket has 1,050"
+      - "reserved parts for a non-pickable location; force ticket created for a D-type location"
+      - "mismatched reserve and quantity numbers after transactions during the batch update"
+      - "parts physically put away are nowhere to be found in LMS"
+    signals:
+      files: [REMAN.NDX]
+      programs: [F8RH0093]
+      phrases: [reserve, open reserve ticket, live ticket, not on reserve, location does not exist, non-pickable, force ticket, glitch ticket, part number reset, reserved quantity, mismatch]
+    root_cause: >-
+      LMS reserve records disagree with the inventory or location records. Causes seen: the
+      reserve was not updated and another user's transfer emptied (and so deleted) the location;
+      transactions were made during the batch update window; and the FIFO flag ('N' for D-type
+      locations, kept in REMAN.NDX) was not read, so a non-pickable location was reserved.
+    steps:
+      - text: "Inquire on the part and the ticket in LMS to confirm the mismatch and see which location and reserve are involved."
+        source: ticket
+        refs: [INC10177489, INC10245587]
+      - text: "Kill the stale ticket and create a new one."
+        source: ticket
+        refs: [INC10245587, INC10177489]
+      - text: "For a glitch ticket on a part: inquire the part number, then press F4 to reset it."
+        source: ticket
+        refs: [INC10174275]
+      - text: "If it recurs for the same location type or part, escalate for program analysis."
+        source: ticket
+        refs: [INC9876850]
+    verify: "The part's reserve and on-hand quantities match, and the new ticket issues normally."
+    preventive:
+      - "Decide whether transactions during the batch update window should be blocked or warned against (SCTASK4900529; needs SME input)."
+      - "Find out why the FIFO flag is sometimes not read from REMAN.NDX (INC9876850; needs SME input)."
+    escalation: none
+    escalate_when:
+      - "It recurs for the same location type or part."
+      - "A non-pickable location gets reserved."
+    evidence:
+      incidents: [INC10245587, INC10177489, INC10174275, INC10152102, INC9876850]
+      service_requests: [SCTASK4900529, SCTASK4770623]
+
+  # -------------------------------------------------------------------------
+  - id: PC-09
+    title: "Sign-on and session problems ('already signed on', cannot log in)"
+    status: draft
+    draft_confidence: medium
+    system: online
+    applications: [Reman Index, LMS, Inventory]
+    symptoms:
+      - "LMS is not allowing the employee to log in"
+      - "user gets an already logged on error"
+      - "cannot log into LMS through AVD"
+      - "user keeps getting kicked out of LMS and has to be reset"
+      - "LMS won't open on computers or Zebras; it pops up a black screen and closes"
+      - "operators open LMS through AVD; it acts like it will open, then does not"
+    signals:
+      programs: [F8RH0251, F8RH0071]
+      phrases: [log in, login, logged on, signed on, sign on, signon, AVD, kicked out, black screen, already logged]
+    root_cause: >-
+      A stale session or leftover temp login files from a previous session: the user is signed
+      on elsewhere, or a session was not closed. The Reman Index security check (F8RH0251)
+      returns code 3 "already signed on" or code 2 "SignOn can not be located".
+    steps:
+      - text: "Ask for the exact message: 'already signed on' and 'SignOn can not be located' need different handling."
+        source: doc
+        refs: [DOC-SECURITY-CODES]
+      - text: "'Already signed on': the user signs off the other session. If that session is stale, delete the user's temp login files."
+        source: ticket
+        refs: [INC10071103, DOC-RMNIDX-TEMP]
+        needs_sme: "Is \\TEMP\\{UID} (created and removed by Reman Index) the folder to clear?"
+      - text: "'SignOn can not be located': check that the user ID exists in Reman Index with the right access level."
+        source: sme
+        needs_sme: "Confirm the check and who can fix the user record."
+      - text: "If many users are affected at once, check PC-01 first: a corrupt file can look like 'LMS won't open'."
+        source: sme
+        needs_sme: "Confirm this triage rule."
+    verify: "The user signs in and reaches the LMS menu."
+    preventive:
+      - "If one user is repeatedly kicked out, look for a second session on another device or AVD (needs SME input)."
+    escalation: none
+    escalate_when:
+      - "Clearing the session does not let the user sign in."
+    dont_confuse:
+      - card: PC-01
+        how_to_tell: "Many users cannot open LMS at the same time, often with a file error number."
+      - card: PC-10
+        how_to_tell: "The user can sign in but is forced to reset the password every time."
+    evidence:
+      incidents: [INC10071103, INC9942848]
+      service_requests: [SCTASK4826741, SCTASK4752211, SCTASK4912046]
+      docs:
+        - id: DOC-SECURITY-CODES
+          file: TechnicalDocuments/05RHE247-cbl-0.4.4.xml
+          section: "F8RH0251 security return codes: 2 = SignOn not located, 3 = already signed on"
+        - id: DOC-RMNIDX-TEMP
+          file: TechnicalDocuments/01RMNIDX-cbl-0.4.4.xml
+          section: "System commands: MD \\TEMP\\{UID} and RD /S /Q \\TEMP\\{UID}"
+
+  # -------------------------------------------------------------------------
+  - id: PC-10
+    title: "Forced password reset at every login (F8RH0251 defect)"
+    status: draft
+    draft_confidence: medium
+    system: online
+    applications: [Reman Index, LMS]
+    symptoms:
+      - "user has to reset his password in LMS every single day"
+      - "every time she logs in to LMS it makes her reset her password"
+      - "user wants to reset the password for the Reman application"
+    signals:
+      programs: [F8RH0251]
+      phrases: [reset password, reset his password, reset her password, password reset, every day, every time]
+    root_cause: >-
+      A defect in F8RH0251 forced a password reset at every login. Change CHG0801085
+      (F8RH0251 No Password issue fix) was completed on 2026-05-26. A single user who has
+      forgotten a password is a normal reset, not this defect.
+    steps:
+      - text: "If the forced reset is reported after 2026-05-26, treat it as a possible regression of CHG0801085 and escalate to development."
+        source: ticket
+        refs: [SCTASK4728202, CHG0801085]
+      - text: "For a single forgotten password, follow KB0010531."
+        source: ticket
+        refs: [SCTASK4891606]
+        needs_sme: "The KB0010531 steps."
+    verify: "The user signs in twice in a row without being asked to reset."
+    preventive:
+      - "Add a regression check for the password flow to the F8RH0251 test plan (needs SME input)."
+    escalation: code_change
+    escalate_when:
+      - "Any forced reset after 2026-05-26."
+    dont_confuse:
+      - card: PC-09
+        how_to_tell: "The user cannot sign in at all, or is told they are already signed on."
+    evidence:
+      service_requests: [SCTASK4728202, SCTASK4789474, SCTASK4891606]
+      changes: [CHG0801085]
+
+  # -------------------------------------------------------------------------
+  - id: PC-11
+    title: "ASN / EDI / file hand-off logic gaps"
+    status: draft
+    draft_confidence: low
+    system: batch
+    applications: [Shipping, Batch]
+    symptoms:
+      - "a new facility / dock code was added; the ASN header needs to change to send EDI"
+      - "ASN was not created for a load that was sent to the mainframe"
+      - "investigate which supplier code the ASN process uses"
+      - "mainframe job has not produced SS0001.rel for the Tidal job to process EDI"
+    signals:
+      files: [SS0001.REL]
+      programs: [F8RH7910, F8RHC071]
+      datasets: [WRK.F8RH.P1F80148, ACT.F8RH.P1F80250]
+      phrases: [ASN, EDI, dock code, facility code, supplier code, load]
+    root_cause: >-
+      The ASN process logic does not cover a new case, such as a new facility or dock code, so
+      the ASN or EDI output is wrong or missing. It needs developer analysis.
+    steps:
+      - text: "Collect the load or ASN number, facility and dock code, and the date it happened."
+        source: ticket
+        refs: [SCTASK4881141, INC10183770]
+      - text: "Escalate to development. A past fix added the missing facility code conversion (R6 to 47) in quickjob F8RHC071, used by the ASN process F8RH7910."
+        source: ticket
+        refs: [INC10183770]
+    verify: "The ASN or EDI file is produced with the right header for the load."
+    preventive:
+      - "Add new facility and dock codes to the ASN conversion logic when they are created (needs SME input)."
+    escalation: code_change
+    evidence:
+      incidents: [INC10183770]
+      service_requests: [SCTASK4897775, SCTASK4881141, SCTASK4821596, SCTASK4815228]
+
+  # -------------------------------------------------------------------------
+  - id: PC-12
+    title: "STKORD batch running far longer than normal"
+    status: draft
+    draft_confidence: low
+    system: batch
+    applications: [Batch]
+    symptoms:
+      - "STKORD job did not complete"
+      - "the job normally runs in about 15 minutes but is still running hours later"
+    signals:
+      jobs: [STKORD]
+      programs: [F8RH0199]
+      phrases: [STKORD, still running, did not complete, long running]
+    root_cause: >-
+      The STKORD job ran far longer than normal. The cause of the slowness was not recorded.
+    steps:
+      - text: "Cancel the long-running job."
+        source: ticket
+        refs: [INC9920127]
+      - text: "Restart it from program F8RH0199."
+        source: ticket
+        refs: [INC9920127]
+    verify: "STKORD completes in its normal time."
+    preventive:
+      - "Find out why STKORD hangs (needs SME input)."
+    escalation: unknown
+    evidence:
+      incidents: [INC9920127]
+    open_questions:
+      - "Why does STKORD hang?"
+
+  # -------------------------------------------------------------------------
+  - id: PC-13
+    title: "QNET file pack and upload (service request)"
+    status: draft
+    draft_confidence: low
+    system: process
+    applications: [Inventory]
+    symptoms:
+      - "QNET file upload"
+      - "please pack and upload this file"
+      - "negative quantities are not coming through negative in the QNET file"
+    signals:
+      phrases: [QNET, pack, upload]
+    root_cause: >-
+      A routine request to pack and upload a QNET file. One request reported negative
+      quantities not coming through as negative, which may be a defect.
+    steps:
+      - text: "Pack the QNET file and upload it."
+        source: sme
+        needs_sme: "The QNET pack and upload steps."
+    verify: "The requester confirms QNET received the file."
+    preventive:
+      - "If negative quantities are lost again, raise it with development (SCTASK4737983)."
+    escalation: none
+    evidence:
+      service_requests: [SCTASK4896276, SCTASK4870167, SCTASK4734673, SCTASK4737983]
+
+  # -------------------------------------------------------------------------
+  - id: PC-14
+    title: "Printer missing or changed"
+    status: draft
+    draft_confidence: low
+    system: online
+    applications: [LMS]
+    symptoms:
+      - "printer is not showing in the printers list in LMS; cannot print storage tags"
+      - "the printer at a location was changed and the line checkers stopped printing"
+    signals:
+      phrases: [printer, printers list, storage tags, printing]
+    root_cause: >-
+      The printer that LMS or the line-checker job prints to was changed, or is missing from
+      the LMS printer configuration.
+    steps:
+      - text: "Get the printer name and IP address from the user."
+        source: ticket
+        refs: [SCTASK4887992]
+      - text: "Add or update the printer in the LMS printer configuration. The program catalogue lists F8RH0304 / F8RHI304 (workstation printers) and F8RH0436 (default receipt printers), but it is AI-generated and low-trust."
+        source: doc
+        refs: [DOC-CATALOG-PRINTERS]
+        needs_sme: "The real printer setup steps."
+    verify: "Storage tags or line-checker tickets print on the new printer."
+    preventive:
+      - "Update the LMS printer list as part of any printer change at a site (needs SME input)."
+    escalation: none
+    evidence:
+      service_requests: [SCTASK4888563, SCTASK4887992]
+      docs:
+        - id: DOC-CATALOG-PRINTERS
+          file: "WorkingTransformOutputs_Prakash'sWorkshop/TransformCoverPage-1000Programs.pdf"
+          section: "One-liners for F8RH0304 / F8RHI304 and F8RH0436 (printer configuration)"
+
+  # -------------------------------------------------------------------------
+  - id: PC-15
+    title: "No fault found / transient / not a COBOL issue"
+    status: draft
+    draft_confidence: medium
+    system: any
+    applications: []
+    symptoms:
+      - "LMS has completely frozen on all systems; we cannot exit or make transactions"
+      - "an error message that turned out not to be a COBOL issue"
+      - "equipment will not load, operators down"
+    signals:
+      phrases: [frozen, not reproducible, working fine, fixed itself, no issue]
+    root_cause: >-
+      No fault found: the condition cleared by itself, could not be reproduced, or was not a
+      COBOL application issue.
+    steps:
+      - text: "Ask for the exact error text or a screenshot, and whether other users are affected."
+        source: ticket
+        refs: [INC9998727]
+      - text: "If it cleared by itself or cannot be reproduced, close it as not reproducible."
+        source: ticket
+        refs: [INC10183373, INC9998727]
+      - text: "If it recurs or names a file or error number, re-route it to PC-01, PC-02 or PC-03."
+        source: sme
+        needs_sme: "Confirm this triage rule."
+    verify: "The user confirms normal operation."
+    preventive: []
+    escalation: not_reproducible
+    evidence:
+      incidents: [INC10183373, INC10181601, INC9998727]

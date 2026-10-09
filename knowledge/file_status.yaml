@@ -1,0 +1,255 @@
+# COBOL file status reference, used to explain error numbers that no past ticket covers.
+#
+# The Reman programs report file errors as "Error # <status><extended code> <file>, <message>",
+# shown by the shared error program F8RH0259 (03RMNLMS 8910-FILE-ERROR). The tickets confirm it:
+# 984 / 983 / 9802 are status 98, 9302 is status 93, 4600 is status 46 ("No file position").
+# So "Error # 4102 REMAN.NDX, Duplicate Open" is status 41.
+#
+# Meanings follow the COBOL standard (statuses 0x-4x) and RM/COBOL (9x). Where tickets show how a
+# status played out in this environment, `seen_in` lists them (samples only, never held-out
+# incidents) and the actions follow what fixed them.
+#
+# status: draft - drafted from the COBOL standard and the tickets, for SME review like the cards.
+
+codes:
+  - status: "22"
+    name: Duplicate key
+    messages: [duplicate key]
+    meaning: A WRITE found a record with the same key already in the file.
+    category: data
+    causes:
+      - The record already exists, because it was entered twice or an earlier attempt half-completed.
+      - The program built a key that already exists.
+    actions:
+      - Inquire on the key to see whether the record already exists.
+      - If it exists, update it instead of adding it again, or remove the leftover record from the failed attempt.
+      - If program-generated keys keep colliding, send it for a code fix.
+    avoid:
+      - The file is not damaged, so do not run file recovery.
+    escalation: code_change_if_repeated
+
+  - status: "23"
+    name: Record not found
+    messages: [record not found, not found]
+    meaning: A READ, START, REWRITE or DELETE by key found no record with that key.
+    category: data
+    causes:
+      - The key entered does not exist (typo, wrong facility, suffix or cell).
+      - The record was deleted, or the step that should have created it did not run.
+      - The index is damaged, when records known to exist cannot be read.
+    actions:
+      - Check the key value that was entered.
+      - Inquire whether the record exists in the file.
+      - If records that do exist cannot be found, treat the file as damaged (status 98).
+    escalation: none
+
+  - status: "24"
+    name: Boundary violation (indexed or relative file)
+    messages: [boundary violation, disk full]
+    meaning: A WRITE went beyond the file's limits, usually because the disk or file size limit was reached.
+    category: environment
+    causes:
+      - The disk holding the file is full, or the file reached its size limit.
+    actions:
+      - Check free space on the drive or server that holds the file, and the file's size.
+      - Free space or archive old data, then retry.
+    escalation: none
+
+  - status: "30"
+    name: Permanent I/O error
+    messages: [permanent error, i/o error]
+    meaning: The operating system reported an input/output error with no further detail.
+    category: environment
+    causes:
+      - The network share or drive holding the file was unavailable or dropped.
+      - A disk or server fault.
+    actions:
+      - Check that the user's session can reach the file share, then retry.
+      - Check the file server and disk health.
+      - If the file then fails to open or read, treat it as damaged (status 98).
+    escalation: none
+
+  - status: "34"
+    name: Boundary violation (sequential file)
+    messages: [disk full]
+    meaning: A WRITE to a sequential file went beyond its limits, usually a full disk.
+    category: environment
+    causes:
+      - The disk holding the file is full.
+    actions:
+      - Check free space on the drive or server that holds the file, free space, then retry.
+    escalation: none
+
+  - status: "35"
+    name: File not found
+    messages: [file not found, not found]
+    meaning: The program tried to OPEN a file that does not exist where it expects it.
+    category: environment
+    causes:
+      - The file was deleted, renamed or moved.
+      - The drive mapping or network share is missing in this session, so the path does not resolve.
+    actions:
+      - Check that the file exists in the expected directory.
+      - Check the user's drive mappings and share access in their session.
+      - If the file was deleted, restore it from backup.
+    avoid:
+      - Do not run file recovery on a file that is missing; recovery needs the file to exist.
+    escalation: none
+
+  - status: "37"
+    name: Open mode not permitted
+    messages: [permission denied, access denied]
+    meaning: The OPEN was refused because the user or session lacks permission for that mode.
+    category: environment
+    causes:
+      - The user lacks read or write permission on the file or share.
+      - The file is marked read-only.
+    actions:
+      - Check the file and share permissions for the user.
+      - Check whether the file is marked read-only.
+    escalation: none
+
+  - status: "39"
+    name: File attribute conflict
+    messages: [attribute conflict, file attribute]
+    meaning: The file's actual layout (record length, keys, organisation) differs from what the program declares.
+    category: file_damage
+    causes:
+      - The file was replaced by a different version or format.
+      - The program was changed without converting the file.
+      - The file header is damaged.
+    actions:
+      - Check recent changes to the program or the file.
+      - Compare the file with its backup copy.
+      - If nothing changed, treat the file as damaged (status 98).
+    escalation: code_change_if_repeated
+
+  - status: "41"
+    name: Duplicate open
+    messages: [duplicate open, already open]
+    meaning: The program tried to OPEN a file that is already open in the same session.
+    category: program_state
+    causes:
+      - An earlier step in the same session left the file open (an error, Escape or timeout exit that skipped the CLOSE), and the next OPEN has no close-before-open guard.
+      - A called subprogram kept the file open from a previous call.
+    actions:
+      - Have the user exit the application completely, closing every window, and sign back in, then retry; a new session starts with every file closed.
+      - If it works after the restart, record which screens and keys were used before the error; that identifies the path that leaves the file open.
+      - If it fails again from a fresh session, it is a reproducible program defect; send it for a code fix in the open routine of the failing screen (close the file before opening it).
+    avoid:
+      - The file is not damaged or locked by another user, so do not run file recovery on it or close other users' locks.
+    escalation: code_change_if_repeated
+
+  - status: "42"
+    name: Close of a file that is not open
+    messages: [not open]
+    meaning: The program tried to CLOSE a file that is not open.
+    category: program_state
+    causes:
+      - The program's file handling got out of step, usually after an earlier error path.
+    actions:
+      - Have the user exit the application completely and sign back in, then retry.
+      - If it repeats on the same screen from a fresh session, send it for a code fix.
+    escalation: code_change_if_repeated
+
+  - status: "43"
+    name: Rewrite or delete without a prior read
+    messages: [no prior read]
+    meaning: A REWRITE or DELETE ran without the successful READ it needs first.
+    category: program_state
+    causes:
+      - The program's READ failed or was skipped before the update.
+    actions:
+      - Retry the transaction.
+      - If it repeats, send it for a code fix.
+    escalation: code_change_if_repeated
+
+  - status: "46"
+    name: No valid next record (no file position)
+    messages: [no file position, no next record]
+    meaning: A sequential READ found no valid position, after end of file or after a failed READ or START.
+    category: file_damage
+    causes:
+      - In this environment it appeared when the file was corrupt (IN0011.MST); corruption leaves the program with no valid position in the file.
+      - Less often, a program reading past the end of the file.
+    actions:
+      - Treat the named file as damaged first; get users out of it, close the open instances and locks, and recover it.
+      - If the file is healthy and the error repeats on the same screen, send it for a code fix.
+    seen_in: [INC10207132, INC10206730]
+    escalation: none
+
+  - status: "47"
+    name: Read on a file not open for input
+    messages: [not open for input]
+    meaning: A READ or START ran on a file that is not open for input or update.
+    category: program_state
+    causes:
+      - An earlier step closed the file, or its OPEN failed and the program carried on.
+    actions:
+      - Have the user exit the application completely and sign back in, then retry.
+      - If it repeats on the same screen from a fresh session, send it for a code fix.
+    escalation: code_change_if_repeated
+
+  - status: "48"
+    name: Write on a file not open for output
+    messages: [not open for output]
+    meaning: A WRITE ran on a file that is not open for output, extend or update.
+    category: program_state
+    causes:
+      - An earlier step closed the file or reopened it read-only.
+    actions:
+      - Have the user exit the application completely and sign back in, then retry.
+      - If it repeats on the same screen from a fresh session, send it for a code fix.
+    escalation: code_change_if_repeated
+
+  - status: "49"
+    name: Rewrite or delete on a file not open for update
+    messages: [not open for i-o]
+    meaning: A REWRITE or DELETE ran on a file that is not open for update.
+    category: program_state
+    causes:
+      - The program opened the file read-only, or an earlier step closed it.
+    actions:
+      - Have the user exit the application completely and sign back in, then retry.
+      - If it repeats on the same screen from a fresh session, send it for a code fix.
+    escalation: code_change_if_repeated
+
+  - status: "93"
+    name: File locked
+    messages: [file locked, file lock, lock error]
+    meaning: The file is held by another user or process, so this OPEN cannot get the access it needs.
+    category: lock
+    causes:
+      - Another session or process still has the file open, often a session that ended abnormally.
+    actions:
+      - Find the sessions or processes holding the file, close them and release the lock.
+      - Retry the transaction.
+      - If the same file locks repeatedly, find which process keeps holding it.
+    seen_in: [INC10148317, INC10109021, INC10055662]
+    escalation: none
+
+  - status: "98"
+    name: File damaged
+    messages: [invalid file structure, file corrupt, corrupt]
+    meaning: The indexed file failed its integrity checks; its structure or index is damaged.
+    category: file_damage
+    causes:
+      - The file was corrupted, often after a session ended while the file was open; locks are often left behind as well.
+    actions:
+      - Get users out of the file and close every open instance and lock on it.
+      - Recover the file (Reman Index Option 34 File Recovery).
+      - Ask the users to reopen the application and confirm transactions work.
+    seen_in: [INC10243056, INC10205898, INC10163159, INC10173454, INC10173980, INC10153437, INC10138881]
+    escalation: none
+
+  - status: "99"
+    name: Record locked
+    messages: [record locked, record in use]
+    meaning: Another user or session holds a lock on the record being read or updated.
+    category: lock
+    causes:
+      - Another user is working on the same record, or a hung session still holds it.
+    actions:
+      - Wait briefly and retry.
+      - Find the session holding the record and have that user exit, or close it if it is hung.
+    escalation: none
